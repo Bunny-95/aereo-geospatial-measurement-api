@@ -1,118 +1,151 @@
-# Aereo Geospatial Measurement API
+# Geospatial File Measurement API
 
-Backend service for ingesting geospatial files and reporting feature measurements. This repository currently provides the application and PostGIS persistence foundations; file ingestion and measurements will be added in later phases.
+A production-oriented FastAPI service for uploading geospatial files, extracting their features and metadata, handling coordinate reference systems (CRS), and calculating geometry measurements such as polygon area and line length.
 
-## Requirements
+This project was developed as part of the **Aereo Software Development Engineer Internship Assignment**.
 
-- Python 3.11
-- Docker Desktop with Docker Compose
+---
 
-## Setup
+## 1. Overview
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-Copy-Item .env.example .env
-```
+The API accepts geospatial files in the following formats:
 
-## PostgreSQL + PostGIS
+- `.kml`
+- `.zip` containing an ESRI Shapefile
 
-Start the local database service:
+For every uploaded file, the service:
 
-```powershell
-docker compose up -d db
-docker compose ps
-```
+1. Validates the uploaded file.
+2. Stores the original file securely.
+3. Parses the geospatial data.
+4. Extracts feature metadata.
+5. Identifies the source CRS.
+6. Transforms geographic coordinates to an appropriate projected CRS when required.
+7. Calculates measurements:
+   - Polygon → area
+   - LineString → length
+   - Point → no measurement
+8. Stores the processed feature data and measurements in PostgreSQL/PostGIS.
+9. Exposes the results through REST APIs.
 
-The development defaults are deliberately local-only and are configured in `.env.example`. The host maps port `5433` to PostgreSQL's container port `5432`, avoiding collision with an existing local PostgreSQL installation. Docker Compose stores database data in the named `postgis_data` volume. No application container is included yet.
+---
 
-Run the initial migration after the database becomes healthy:
+## 2. Features
 
-```powershell
-alembic upgrade head
-alembic current
-```
+### File Handling
 
-To stop the service while retaining data:
+- KML upload support
+- ZIP-based Shapefile upload support
+- File type validation
+- File size validation
+- SHA-256 file hashing
+- Secure local file storage
+- ZIP path traversal protection
+- ZIP decompressed-size protection
+- Validation of required Shapefile components
 
-```powershell
-docker compose down
-```
+### Geospatial Processing
 
-## Run locally
+- Feature extraction
+- Geometry type detection
+- Feature properties extraction
+- Source CRS extraction
+- Polygon area calculation
+- LineString length calculation
+- Point handling without measurement
+- MultiPolygon support
+- MultiLineString support
+- Unsupported geometry handling
 
-```powershell
-uvicorn app.main:app --reload
-```
+### CRS Handling
 
-The health endpoint is available at `GET /health`.
+- Geographic CRS detection
+- Projected CRS support
+- Automatic transformation from geographic CRS
+- Local UTM CRS selection based on geometry location
+- Accurate area and distance calculations in meters
 
-## Upload API
+### Backend
 
-`POST /api/files/` accepts one multipart field named `file`. Supported inputs are `.kml` files and `.zip` archives containing exactly one Shapefile dataset with `.shp`, `.shx`, and `.dbf` components. Geospatial parsing is not performed yet; accepted uploads remain in `processing` status.
+- FastAPI
+- SQLAlchemy
+- PostgreSQL
+- PostGIS
+- GeoAlchemy2
+- Alembic migrations
+- Pydantic schemas
 
-```powershell
-curl.exe -X POST http://localhost:8000/api/files/ -F "file=@.\boundary.kml"
-```
+### Quality
 
-Example response:
+- Pytest automated tests
+- Ruff linting
+- Ruff formatting
+- Docker Compose
+- PostgreSQL/PostGIS health checks
 
-```json
-{
-  "id": "33f30bc1-1ddc-48e7-b3a6-2cf14a432c4b",
-  "original_filename": "boundary.kml",
-  "file_type": "kml",
-  "content_type": "application/vnd.google-earth.kml+xml",
-  "size_bytes": 184,
-  "sha256": "...",
-  "status": "processing",
-  "source_crs": null,
-  "feature_count": 0,
-  "error_code": null,
-  "error_message": null,
-  "created_at": "2026-10-07T12:00:00Z",
-  "processed_at": null
-}
-```
+---
 
-Retrieve public metadata with `GET /api/files/{id}`. Internal storage keys and filesystem paths are never returned.
+## 3. Tech Stack
 
-### Upload limits and storage safety
+| Component | Technology |
+|---|---|
+| Language | Python 3.11 |
+| API | FastAPI |
+| Database | PostgreSQL |
+| Spatial Database | PostGIS |
+| ORM | SQLAlchemy |
+| Spatial ORM | GeoAlchemy2 |
+| Migrations | Alembic |
+| Geospatial Parsing | Fiona / ElementTree |
+| Geometry Processing | Shapely |
+| CRS Transformation | PyProj |
+| Validation | Pydantic |
+| Testing | Pytest |
+| Linting | Ruff |
+| Containerization | Docker / Docker Compose |
 
-- `MAX_UPLOAD_SIZE_BYTES` defaults to 10 MiB; files are streamed in chunks while SHA-256 is calculated.
-- `MAX_ZIP_UNCOMPRESSED_SIZE_BYTES` defaults to 50 MiB.
-- `UPLOAD_DIRECTORY` defaults to `data/uploads` and is created automatically.
-- Stored object keys are UUID-based; user filenames are metadata only and are never used as filesystem paths.
-- ZIP archives are inspected without extraction. Traversal paths, encrypted members, invalid archives, incomplete Shapefiles, multiple datasets, and oversized decompressed content are rejected.
-- If validation or database persistence fails, the stored object is removed where possible.
+---
 
-## Database architecture
+## 4. Architecture
 
-- `uploaded_files` stores source-file metadata, source CRS, processing state, and error details.
-- `geospatial_features` stores source feature metadata, JSONB attributes, source geometry, and fields reserved for later measurements.
-- Features reference their owning upload through `file_id`; `(file_id, feature_index)` is unique.
-- The geometry column uses the PostGIS generic `geometry(GEOMETRY, -1)` form with a GIST index. It accepts any source geometry type and SRID instead of coercing all data to EPSG:4326. `source_crs` persists the original declared CRS, including non-EPSG CRS strings. Later processing will create projected copies only for calculations, leaving source geometry intact.
+```text
+                     Client
+                       |
+                       | HTTP
+                       v
+              +-------------------+
+              |     FastAPI       |
+              |       API         |
+              +-------------------+
+                       |
+                       v
+              +-------------------+
+              | File Validation   |
+              | & Storage Service |
+              +-------------------+
+                       |
+                       v
+              +-------------------+
+              | Geospatial Parser |
+              | KML / Shapefile   |
+              +-------------------+
+                       |
+                       v
+              +-------------------+
+              |  CRS Processing   |
+              |   PyProj +        |
+              |    Shapely        |
+              +-------------------+
+                       |
+                       v
+              +-------------------+
+              | Measurement       |
+              | Service           |
+              +-------------------+
+                       |
+                       v
+              +-------------------+
+              | PostgreSQL +      |
+              |    PostGIS        |
+              +-------------------+
 
-## Migrations
-
-Alembic reads the same `DATABASE_*` settings as the application. Common commands:
-
-```powershell
-alembic upgrade head
-alembic current
-alembic downgrade -1
-```
-
-## Verification
-
-```powershell
-pytest
-ruff check .
-ruff format --check .
-```
-
-## Current scope
-
-Phase 2 adds synchronous SQLAlchemy 2.x sessions, GeoAlchemy2/PostGIS models, Alembic migration support, Docker Compose database infrastructure, and PostgreSQL integration tests. No file upload, parsing, CRS transformation, or measurements are implemented yet.
