@@ -40,7 +40,7 @@ class UploadedFile(Base):
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     storage_key: Mapped[str] = mapped_column(String(1024), nullable=False, unique=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, server_default="processing")
-    source_crs: Mapped[str | None] = mapped_column(String(255))
+    source_crs: Mapped[str | None] = mapped_column(Text)
     feature_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     error_code: Mapped[str | None] = mapped_column(String(128))
     error_message: Mapped[str | None] = mapped_column(Text)

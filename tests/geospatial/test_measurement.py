@@ -2,7 +2,14 @@
 
 import pytest
 from app.services.geospatial.measurement import MeasurementService
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import (
+    GeometryCollection,
+    LineString,
+    MultiLineString,
+    MultiPolygon,
+    Point,
+    Polygon,
+)
 
 
 def test_polygon_area_in_wgs84_is_measured_in_square_meters():
@@ -49,16 +56,18 @@ def test_linestring_in_wgs84_is_measured_in_meters():
 
 
 def test_point_has_no_measurement():
-    geometry = Point(77.5946, 12.9716)
+    """Point geometries should not produce an area or length."""
+    service = MeasurementService()
 
-    result = MeasurementService().measure(
-        geometry,
-        "EPSG:4326",
+    result = service.measure(
+        geometry=Point(77.5946, 12.9716),
+        source_crs="EPSG:4326",
     )
 
     assert result.measurement_type == "not_applicable"
     assert result.value is None
     assert result.unit is None
+    assert result.calculation_crs is None
 
 
 def test_projected_crs_is_used_directly():
@@ -96,3 +105,78 @@ def test_missing_crs_raises_error():
             geometry,
             None,
         )
+
+
+def test_multipolygon_returns_area():
+    """MultiPolygon geometries should return area in square metres."""
+    service = MeasurementService()
+
+    geometry = MultiPolygon(
+        [
+            Polygon(
+                [
+                    (77.5940, 12.9710),
+                    (77.5950, 12.9710),
+                    (77.5950, 12.9720),
+                    (77.5940, 12.9720),
+                    (77.5940, 12.9710),
+                ]
+            )
+        ]
+    )
+
+    result = service.measure(
+        geometry=geometry,
+        source_crs="EPSG:4326",
+    )
+
+    assert result.measurement_type == "area"
+    assert result.value is not None
+    assert result.value > 0
+    assert result.unit == "square_meters"
+    assert result.calculation_crs.startswith("EPSG:")
+
+
+def test_multilinestring_returns_length():
+    """MultiLineString geometries should return length in metres."""
+    service = MeasurementService()
+
+    geometry = MultiLineString(
+        [
+            [
+                (77.5940, 12.9710),
+                (77.5950, 12.9710),
+            ]
+        ]
+    )
+
+    result = service.measure(
+        geometry=geometry,
+        source_crs="EPSG:4326",
+    )
+
+    assert result.measurement_type == "length"
+    assert result.value is not None
+    assert result.value > 0
+    assert result.unit == "meters"
+    assert result.calculation_crs.startswith("EPSG:")
+
+
+def test_unsupported_geometry_is_handled():
+    """Unsupported geometry types should not crash measurement processing."""
+    service = MeasurementService()
+
+    geometry = GeometryCollection(
+        [
+            Point(77.5946, 12.9716),
+        ]
+    )
+
+    result = service.measure(
+        geometry=geometry,
+        source_crs="EPSG:4326",
+    )
+
+    assert result.measurement_type == "unsupported"
+    assert result.value is None
+    assert result.unit is None

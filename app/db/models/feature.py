@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Text,
     UniqueConstraint,
     text,
 )
@@ -50,14 +51,14 @@ class GeospatialFeature(Base):
     geometry: Mapped[Any | None] = mapped_column(
         Geometry(geometry_type="GEOMETRY", srid=-1, spatial_index=False), nullable=True
     )
-    source_crs: Mapped[str | None] = mapped_column(String(255))
+    source_crs: Mapped[str | None] = mapped_column(Text)
     properties: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
     measurement_type: Mapped[str | None] = mapped_column(String(32))
     measurement_value: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
     measurement_unit: Mapped[str | None] = mapped_column(String(32))
-    measurement_crs: Mapped[str | None] = mapped_column(String(255))
+    measurement_crs: Mapped[str | None] = mapped_column(Text)
     measurement_metadata: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
