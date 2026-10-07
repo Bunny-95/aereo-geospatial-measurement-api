@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: aereo-postgis
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-aereo_measurements}
+      POSTGRES_USER: ${DATABASE_USER:-aereo}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-aereo_dev_password}
+    ports:
+      - "${DATABASE_PORT:-5433}:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  postgis_data:

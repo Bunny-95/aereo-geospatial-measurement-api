@@ -1,0 +1,35 @@
+# Python bytecode and tooling
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment files and local application data
+.env
+.env.*
+!.env.example
+data/
+uploads/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
