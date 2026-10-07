@@ -4,7 +4,6 @@ import io
 import zipfile
 
 import pytest
-
 from app.services.geospatial.parser import (
     GeospatialParser,
     GeospatialParserError,
