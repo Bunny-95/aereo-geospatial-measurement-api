@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 
 from pyproj import CRS, Transformer
+from shapely import transform
 from shapely.geometry.base import BaseGeometry
-from shapely.ops import transform
 
 
 class CRSProcessingError(Exception):
@@ -81,7 +81,11 @@ class CRSService:
                 always_xy=True,
             )
 
-            return transform(transformer.transform, geometry)
+            return transform(
+                geometry,
+                transformer.transform,
+                interleaved=False,
+            )
 
         except Exception as error:
             raise CRSProcessingError("Unable to transform geometry.") from error
